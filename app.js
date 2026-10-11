@@ -112,7 +112,7 @@ async function updateApiBadgeState() {
 
   try {
     const response = await fetch("/api/health");
-    const status = response.ok ? await response.json() : { aiConfigured: false };
+    const status = response.ok ? await readApiJson(response) : { aiConfigured: false };
     if (status.aiConfigured) {
       apiStatusBadge.className = "badge badge-safe";
       apiStatusBadge.textContent = "Groq Active";
@@ -126,6 +126,22 @@ async function updateApiBadgeState() {
   apiStatusBadge.className = "badge badge-warning";
   apiStatusBadge.textContent = "Offline Mode";
   if (apiStatusNote) apiStatusNote.textContent = "Offline mentor responses are active. Configure GROQ_API_KEY on the app server for live AI.";
+}
+
+async function readApiJson(response) {
+  const body = await response.text();
+  if (/^\s*</.test(body)) {
+    throw new Error(
+      `The AI endpoint returned a web page instead of JSON (HTTP ${response.status}). ` +
+      `Start FocusPulse with "npm start" and open the Node server URL; static hosting cannot run the AI API.`
+    );
+  }
+
+  try {
+    return JSON.parse(body);
+  } catch {
+    throw new Error(`The AI endpoint returned invalid JSON (HTTP ${response.status}). Restart or redeploy the FocusPulse Node server.`);
+  }
 }
 
 // ================= STREAK & CALENDAR ENGINE =================
@@ -364,7 +380,7 @@ async function callAiMentor(promptText, systemInstruction = "") {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt: promptText, systemInstruction })
     });
-    const result = await response.json();
+    const result = await readApiJson(response);
     if (!response.ok) {
       throw new Error(result.error || `AI service request failed (HTTP ${response.status}).`);
     }

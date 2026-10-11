@@ -18,6 +18,8 @@ Requires Node.js 18 or newer.
 
 If `GROQ_API_KEY` is not configured, the app remains usable with its built-in offline mentor responses.
 
+Open the URL printed by `npm start`, not `index.html` directly or a static-hosting URL such as GitHub Pages. The `/api/chat` and `/api/health` routes only exist on the Node.js server; static hosting returns an HTML page for those API requests.
+
 `GROQ_MODEL` can optionally select another model available to your Groq account. The default is `llama-3.3-70b-versatile`.
 
-When deploying, configure `GROQ_API_KEY` as a server-side environment secret and run `npm start`. Never expose it in browser JavaScript or a public client-side `.env` file.
+When deploying, configure `GROQ_API_KEY` as a server-side environment secret and run `npm start`, then use that server's URL to access the app. Never expose it in browser JavaScript or a public client-side `.env` file.
