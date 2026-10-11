@@ -1,9 +1,7 @@
 // ================= CONFIGURATION =================
-const GEMINI_API_KEY = "AQ.Ab8RN6JeOFLZsw1jZ4iM2VW6KQjY8tKlWesi6tgfbLcGQMDL5Q";
-const GOOGLE_CLIENT_ID = ""; // Optional: OAuth 2.0 Web Client ID
+const GEMINI_API_KEY = "";
 
 const STORAGE_KEYS = {
-  USER: "focuspulse_user",
   TASKS: "focuspulse_tasks",
   MINUTES: "focuspulse_minutes",
   SCREEN_HOURS: "focuspulse_screen_hours",
@@ -22,7 +20,6 @@ const SUBJECT_COLORS = {
 };
 
 // Application State
-let currentUser = JSON.parse(localStorage.getItem(STORAGE_KEYS.USER)) || null;
 let tasks = JSON.parse(localStorage.getItem(STORAGE_KEYS.TASKS)) || [];
 let totalMinutesStudied = parseInt(localStorage.getItem(STORAGE_KEYS.MINUTES), 10) || 0;
 let screenHours = parseFloat(localStorage.getItem(STORAGE_KEYS.SCREEN_HOURS)) || 0.0;
@@ -66,14 +63,6 @@ const navTabs = document.querySelectorAll(".nav-tab");
 const viewPanels = document.querySelectorAll(".view-panel");
 const downloadTxtBtn = document.getElementById("download-txt-btn");
 
-// Auth Elements
-const fallbackLoginBtn = document.getElementById("fallback-login-btn");
-const userProfileChip = document.getElementById("user-profile-chip");
-const userAvatar = document.getElementById("user-avatar");
-const userName = document.getElementById("user-name");
-const signoutBtn = document.getElementById("signout-btn");
-const gSigninBtnContainer = document.getElementById("g-signin-btn");
-
 // Focus AI Elements
 const aiChatForm = document.getElementById("ai-chat-form");
 const aiUserPrompt = document.getElementById("ai-user-prompt");
@@ -92,7 +81,6 @@ const apiStatusNote = document.getElementById("api-status-note");
 
 // ================= APP INITIALIZATION =================
 document.addEventListener("DOMContentLoaded", () => {
-  initGoogleAuth();
   validateStreakOnStartup();
   renderDate();
   renderTasks();
@@ -130,80 +118,6 @@ function updateApiBadgeState() {
     apiStatusBadge.textContent = "Offline Mode";
     if (apiStatusNote) apiStatusNote.textContent = "Heuristic engine active.";
   }
-}
-
-// ================= GOOGLE AUTH & USER PERSISTENCE =================
-function initGoogleAuth() {
-  if (currentUser) {
-    displayUserSession(currentUser);
-    return;
-  }
-
-  if (window.google && GOOGLE_CLIENT_ID) {
-    try {
-      google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: handleGoogleCredentialResponse
-      });
-
-      if (fallbackLoginBtn) fallbackLoginBtn.style.display = "none";
-      if (gSigninBtnContainer) {
-        google.accounts.id.renderButton(gSigninBtnContainer, {
-          theme: "outline",
-          size: "medium",
-          shape: "pill"
-        });
-      }
-      return;
-    } catch (err) {
-      console.warn("Google Sign-In initialization failed, switching to local auth:", err);
-    }
-  }
-
-  if (fallbackLoginBtn) fallbackLoginBtn.style.display = "inline-flex";
-  if (gSigninBtnContainer) gSigninBtnContainer.style.display = "none";
-}
-
-function handleGoogleCredentialResponse(response) {
-  try {
-    const base64Url = response.credential.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-
-    const profile = JSON.parse(jsonPayload);
-    setUserSession({
-      name: profile.name,
-      email: profile.email,
-      picture: profile.picture
-    });
-  } catch (e) {
-    console.error("JWT parse error:", e);
-  }
-}
-
-function setUserSession(userData) {
-  currentUser = userData;
-  localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(currentUser));
-  displayUserSession(currentUser);
-}
-
-function displayUserSession(user) {
-  if (fallbackLoginBtn) fallbackLoginBtn.style.display = "none";
-  if (gSigninBtnContainer) gSigninBtnContainer.style.display = "none";
-  if (userProfileChip) userProfileChip.style.display = "flex";
-  if (userName) userName.textContent = user.name || "Student";
-  if (userAvatar) {
-    userAvatar.src = user.picture || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user.name || "Student")}`;
-  }
-}
-
-function handleSignOut() {
-  localStorage.removeItem(STORAGE_KEYS.USER);
-  currentUser = null;
-  if (userProfileChip) userProfileChip.style.display = "none";
-  initGoogleAuth();
 }
 
 // ================= STREAK & CALENDAR ENGINE =================
@@ -382,21 +296,6 @@ function setupEventListeners() {
     });
   });
 
-  if (fallbackLoginBtn) {
-    fallbackLoginBtn.addEventListener("click", () => {
-      const studentName = prompt("Enter Student Name for Google Sign-In Demo:", "Aarav Sharma");
-      if (studentName) {
-        setUserSession({
-          name: studentName,
-          email: `${studentName.toLowerCase().replace(/\s+/g, '')}@gmail.com`,
-          picture: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(studentName)}`
-        });
-      }
-    });
-  }
-
-  if (signoutBtn) signoutBtn.addEventListener("click", handleSignOut);
-
   // Focus AI Listeners
   if (aiChatForm) aiChatForm.addEventListener("submit", handleChatSubmit);
   if (clearChatBtn) {
@@ -449,7 +348,7 @@ function setupEventListeners() {
   if (downloadTxtBtn) downloadTxtBtn.addEventListener("click", exportDailySummary);
 }
 
-// ================= ROBUST GEMINI CALLER WITH DIAGNOSTICS =================
+// ================= GEMINI CALLER (SINGLE CREDENTIAL ONLY) =================
 async function callGemini(promptText, systemInstruction = "") {
   const cleanKey = GEMINI_API_KEY ? GEMINI_API_KEY.trim() : "";
 
@@ -463,12 +362,14 @@ async function callGemini(promptText, systemInstruction = "") {
       ]
     };
 
-    // Attempt 1: Standard URL parameter
+    // Primary route: Header only (avoids multiple-credential collisions)
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(cleanKey)}`;
-      const res = await fetch(url, {
+      const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": cleanKey
+        },
         body: JSON.stringify(payload)
       });
 
@@ -476,32 +377,26 @@ async function callGemini(promptText, systemInstruction = "") {
         const data = await res.json();
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (text) return text;
-      } else {
-        const errJson = await res.json().catch(() => ({}));
-        // If rejected due to auth format, attempt Bearer token strategy
-        if (res.status === 400 || res.status === 401 || res.status === 403) {
-          const bearerRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${cleanKey}`
-            },
-            body: JSON.stringify(payload)
-          });
-
-          if (bearerRes.ok) {
-            const bData = await bearerRes.json();
-            const bText = bData.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (bText) return bText;
-          }
-        }
-
-        // Return exact diagnostics instead of masking the error
-        return `⚠️ **Gemini API Error (HTTP ${res.status}):** ${errJson.error?.message || res.statusText}\n\n*Note: Google AI Studio keys typically begin with \`AIzaSy...\`. If this is an OAuth token, ensure it has the \`https://www.googleapis.com/auth/generative-language\` scope.*`;
       }
-    } catch (networkError) {
-      console.warn("Network/CORS error calling Gemini:", networkError);
-      return `⚠️ **Connection Error:** Could not reach Gemini endpoint (${networkError.message}). Ensure your internet connection is active. Switching to offline study mentor below.\n\n` + generateOfflineAiResponse(promptText);
+
+      // Secondary route: Query parameter only (without custom headers)
+      const urlRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(cleanKey)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      if (urlRes.ok) {
+        const urlData = await urlRes.json();
+        const urlText = urlData.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (urlText) return urlText;
+      }
+
+      const errJson = await res.json().catch(() => ({}));
+      return `⚠️ **Gemini API Error (HTTP ${res.status}):** ${errJson.error?.message || res.statusText}\n\n*Using offline mentor response:*\n\n` + generateOfflineAiResponse(promptText);
+    } catch (netErr) {
+      console.warn("Network error reaching Gemini:", netErr);
+      return generateOfflineAiResponse(promptText);
     }
   }
 
@@ -512,7 +407,6 @@ async function callGemini(promptText, systemInstruction = "") {
 function generateOfflineAiResponse(prompt) {
   const p = prompt.toLowerCase().trim();
 
-  // Natural Conversational Replies
   if (p === "how are you" || p.includes("how are you")) {
     return `Hello! I'm operating at peak performance and ready to help you plan your revision. What chapter or subject are we working on right now?`;
   }
@@ -525,30 +419,25 @@ function generateOfflineAiResponse(prompt) {
     return `I am **Focus AI**, your built-in revision coach. I help you break down complex syllabus topics into 25-minute Pomodoro tasks, run quick active-recall quizzes, and monitor your study-to-screen ratio to prevent academic burnout.`;
   }
 
-  // Decompose Intent
   if (p.includes("decompose") || p.includes("break down") || p.includes("subtask")) {
     return `### 🧩 Focus AI Topic Decomposition\nHere is your high-yield 3-step revision breakdown:\n1. **Core Conceptual Overview:** Read and diagram the foundational formulas and definitions (25m block).\n2. **Targeted Practice:** Solve 5 representative numericals or standard textbook questions (25m block).\n3. **Active Recall Summary:** Close notes and write down key laws and boundary conditions from memory (15m block).\n\n*Tasks have been organized for high retention!*`;
   }
 
-  // Quiz Intent
   if (p.includes("quiz") || p.includes("recall") || p.includes("test")) {
     return `### 🎯 Focus AI Active Recall Quiz\nTest your knowledge without checking notes:\n1. **Question 1:** What is the primary difference between scalar and vector quantities in kinematics?\n2. **Question 2:** State the first law of thermodynamics in mathematical terms.\n3. **Question 3:** What is the limiting reagent in an equimolar reaction of A + 2B -> C?\n\n*Write down your answers, then spend 5 minutes reviewing any missed concepts!*`;
   }
 
-  // Burnout & Fatigue Intent
   if (p.includes("fatigue") || p.includes("burnout") || p.includes("screen")) {
     const studyHours = (totalMinutesStudied / 60).toFixed(1);
     return `### 🧘 Focus AI Fatigue & Cognitive Analysis\n- **Current Study Load:** ${studyHours} hours\n- **Recreational Screen Exposure:** ${screenHours} hours\n\n**Diagnosis:** ${screenHours >= 4 ? "High Screen Strain" : "Healthy Cognitive Equilibrium"}.\n**Prescription:** Practice the **20-20-20 rule** (every 20 minutes, look at an object 20 feet away for 20 seconds). Hydrate immediately, and ensure your next study block is completed using physical notebooks instead of a display.`;
   }
 
-  // Audit Intent
   if (p.includes("audit") || p.includes("summary") || p.includes("report")) {
     const completed = tasks.filter(t => t.completed).length;
     return `**Focus AI Executive Summary:** Student demonstrates consistent discipline with a **${streakDays}-day active habit streak**. Current task completion efficiency stands at **${tasks.length ? Math.round((completed / tasks.length) * 100) : 0}%**. Recreational screen time is currently logged at ${screenHours} hrs against ${totalMinutesStudied} study minutes. Recommendation: Prioritize pending High-Priority tasks during the morning focus window.`;
   }
 
-  // General Subject Guidance
-  return `### ⚡ Focus AI Study Insight\nHere is an optimized revision strategy for your query:\n- **Spaced Repetition:** Review the core definitions today, and re-test yourself in 48 hours.\n- **Feynman Technique:** Explain this concept in simple words out loud as if explaining it to a classmate.\n- **Active Practice:** Pair this topic with a 25-minute Pomodoro study sprint.`;
+  return `### ⚡ Focus AI Study Insight\nHere is an optimized revision strategy for your query:\n- **Spaced Repetition:** Review the core definitions today, and re-test yourself in 48 hours.\n- **Feynman Technique:** Explain this concept in simple words out loud as if explaining it to a peer.\n- **Active Practice:** Pair this topic with a 25-minute Pomodoro study sprint.`;
 }
 
 // ================= AI CHAT & TASK INTEGRATION =================
@@ -574,7 +463,7 @@ function appendChatBubble(sender, content) {
   const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   div.innerHTML = `
     <div class="bubble-header">
-      <strong>${sender === 'user' ? (currentUser ? currentUser.name : 'You') : 'Focus AI ✨'}</strong>
+      <strong>${sender === 'user' ? 'Student' : 'Focus AI ✨'}</strong>
       <span class="timestamp">${timeStr}</span>
     </div>
     <div class="bubble-text">${formatMarkdownText(content)}</div>
@@ -654,7 +543,7 @@ async function generateAiReportAudit() {
   if (!aiSummaryBody) return;
   aiSummaryBody.innerHTML = "<em>Focus AI is synthesizing study metrics and generating audit...</em>";
   const completed = tasks.filter(t => t.completed).length;
-  const prompt = `Generate a concise executive revision audit for a student named ${currentUser ? currentUser.name : 'Student'}:
+  const prompt = `Generate a concise executive revision audit for a high school student:
 - Active Streak: ${streakDays} days
 - Study Time: ${totalMinutesStudied} minutes
 - Non-Academic Screen Hours: ${screenHours} hours
@@ -879,7 +768,6 @@ function renderReportView() {
     }
   }
 
-  // Subject Stacked Distribution Bar
   const subjectCounts = {};
   tasks.forEach(t => {
     subjectCounts[t.subject] = (subjectCounts[t.subject] || 0) + 1;
@@ -918,7 +806,6 @@ function renderReportView() {
     }
   }
 
-  // Task Registry Table Log
   const tbody = document.getElementById("report-table-body");
   if (tbody) {
     tbody.innerHTML = "";
@@ -969,16 +856,6 @@ function populateDemoData() {
   }
   activityHistory[getIsoDate()] = 4;
 
-  if (!currentUser) {
-    currentUser = {
-      name: "Aarav Sharma",
-      email: "aarav.sharma@gmail.com",
-      picture: "https://api.dicebear.com/7.x/bottts/svg?seed=Aarav"
-    };
-    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(currentUser));
-    displayUserSession(currentUser);
-  }
-
   localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
   localStorage.setItem(STORAGE_KEYS.MINUTES, totalMinutesStudied);
   localStorage.setItem(STORAGE_KEYS.SCREEN_HOURS, screenHours);
@@ -999,7 +876,6 @@ function exportDailySummary() {
   const lines = [
     "============================================================",
     "          FOCUSPULSE COMPREHENSIVE REVISION AUDIT           ",
-    `          Student: ${currentUser ? currentUser.name : "Unregistered"} `,
     `          Date: ${new Date().toLocaleDateString()}          `,
     "============================================================",
     "",
@@ -1029,7 +905,7 @@ function exportDailySummary() {
 }
 
 function resetAllData() {
-  if (confirm("Reset all stored sessions, tasks, user profile, and historical activity?")) {
+  if (confirm("Reset all stored sessions, tasks, and historical activity?")) {
     localStorage.clear();
     tasks = [];
     totalMinutesStudied = 0;
@@ -1037,10 +913,7 @@ function resetAllData() {
     streakDays = 0;
     lastActiveDate = null;
     activityHistory = {};
-    currentUser = null;
     if (screentimeInput) screentimeInput.value = 0.0;
-    if (userProfileChip) userProfileChip.style.display = "none";
-    initGoogleAuth();
     renderTasks();
     buildGitHubHeatmap();
     updateMetrics();
@@ -1049,6 +922,6 @@ function resetAllData() {
   }
 }
 
-// Window bindings for inline DOM attributes
+// Window bindings
 window.toggleTask = toggleTask;
 window.deleteTask = deleteTask;

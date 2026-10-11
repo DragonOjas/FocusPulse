@@ -124,59 +124,6 @@ body {
   gap: 0.6rem;
 }
 
-/* Auth Profile Chip & Google Button */
-.auth-wrapper {
-  display: flex;
-  align-items: center;
-}
-
-.btn-google-fallback {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: #ffffff;
-  color: #1f2937;
-  border: 1px solid #d1d5db;
-  font-weight: 600;
-}
-
-.btn-google-fallback:hover {
-  background: #f3f4f6;
-}
-
-.google-icon {
-  width: 14px;
-  height: 14px;
-}
-
-.user-profile-chip {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: var(--bg-elevated);
-  padding: 0.25rem 0.55rem;
-  border-radius: 999px;
-  border: 1px solid var(--border-color);
-}
-
-.user-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 1px solid var(--accent-primary);
-}
-
-.user-name {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--text-main);
-  max-width: 110px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .header-actions {
   display: flex;
   gap: 0.35rem;
