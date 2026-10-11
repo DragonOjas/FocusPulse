@@ -1,6 +1,7 @@
 const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
+const { createGroqReply } = require("./lib/groq");
 
 const ROOT = __dirname;
 const MAX_BODY_BYTES = 16 * 1024;
@@ -68,48 +69,8 @@ async function handleRequest(request, response) {
       return;
     }
 
-    const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
-    const systemInstruction = typeof body.systemInstruction === "string"
-      ? body.systemInstruction.trim()
-      : "";
-    if (!prompt || prompt.length > 8000 || systemInstruction.length > 4000) {
-      return sendJson(response, 400, { error: "Prompt or system instruction is empty or too long." });
-    }
-
-    try {
-      const upstream = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
-          messages: [
-            ...(systemInstruction ? [{ role: "system", content: systemInstruction }] : []),
-            { role: "user", content: prompt }
-          ],
-          temperature: 0.7,
-          max_tokens: 1024
-        })
-      });
-
-      if (!upstream.ok) {
-        console.error(`Groq API request failed with HTTP ${upstream.status}.`);
-        return sendJson(response, 502, { error: "The Groq AI service could not complete the request." });
-      }
-
-      const result = await upstream.json();
-      const reply = result.choices?.[0]?.message?.content;
-      if (typeof reply !== "string" || !reply.trim()) {
-        console.error("Groq API returned no assistant message.");
-        return sendJson(response, 502, { error: "The Groq AI service returned an empty response." });
-      }
-      return sendJson(response, 200, { reply });
-    } catch (error) {
-      console.error("Groq API request failed:", error.message);
-      return sendJson(response, 502, { error: "Could not connect to the Groq AI service." });
-    }
+    const result = await createGroqReply(body);
+    return sendJson(response, result.status, result.body);
   }
 
   if (request.method !== "GET" && request.method !== "HEAD") {

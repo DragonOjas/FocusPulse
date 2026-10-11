@@ -2,6 +2,8 @@ const assert = require("node:assert/strict");
 const http = require("node:http");
 const test = require("node:test");
 const { createAppServer } = require("../server");
+const chatHandler = require("../api/chat");
+const healthHandler = require("../api/health");
 
 function request(server, { method = "GET", path = "/", body } = {}) {
   const address = server.address();
@@ -101,4 +103,78 @@ test("rejects invalid chat prompts before making an upstream request", async t =
 
   const chat = await request(server, { method: "POST", path: "/api/chat", body: { prompt: " " } });
   assert.equal(chat.status, 400);
+});
+
+test("serverless health and chat endpoints return JSON responses", async t => {
+  const previousKey = process.env.GROQ_API_KEY;
+  const previousFetch = global.fetch;
+  delete process.env.GROQ_API_KEY;
+  t.after(() => {
+    global.fetch = previousFetch;
+    if (previousKey === undefined) delete process.env.GROQ_API_KEY;
+    else process.env.GROQ_API_KEY = previousKey;
+  });
+
+  function mockResponse() {
+    return {
+      headers: {},
+      setHeader(name, value) {
+        this.headers[name] = value;
+      },
+      status(statusCode) {
+        this.statusCode = statusCode;
+        return this;
+      },
+      json(body) {
+        this.body = body;
+        return this;
+      }
+    };
+  }
+
+  const healthResponse = mockResponse();
+  healthHandler({ method: "GET" }, healthResponse);
+  assert.equal(healthResponse.statusCode, 200);
+  assert.deepEqual(healthResponse.body, { aiConfigured: false });
+  assert.equal(healthResponse.headers["Cache-Control"], "no-store");
+
+  const chatResponse = mockResponse();
+  await chatHandler({ method: "POST", body: { prompt: "Hello" } }, chatResponse);
+  assert.equal(chatResponse.statusCode, 503);
+  assert.match(chatResponse.body.error, /not configured/);
+});
+
+test("serverless chat endpoint proxies valid prompts to Groq", async t => {
+  const previousKey = process.env.GROQ_API_KEY;
+  const previousFetch = global.fetch;
+  process.env.GROQ_API_KEY = "test-server-only-key";
+  let upstreamUrl;
+  global.fetch = async url => {
+    upstreamUrl = url;
+    return new Response(JSON.stringify({
+      choices: [{ message: { content: "You can do it!" } }]
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+  t.after(() => {
+    global.fetch = previousFetch;
+    if (previousKey === undefined) delete process.env.GROQ_API_KEY;
+    else process.env.GROQ_API_KEY = previousKey;
+  });
+
+  const response = {
+    setHeader() {},
+    status(statusCode) {
+      this.statusCode = statusCode;
+      return this;
+    },
+    json(body) {
+      this.body = body;
+      return this;
+    }
+  };
+  await chatHandler({ method: "POST", body: { prompt: "Help me focus" } }, response);
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, { reply: "You can do it!" });
+  assert.equal(upstreamUrl, "https://api.groq.com/openai/v1/chat/completions");
 });

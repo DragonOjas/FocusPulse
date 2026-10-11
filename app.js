@@ -111,7 +111,7 @@ async function updateApiBadgeState() {
   apiStatusBadge.textContent = "Checking AI...";
 
   try {
-    const response = await fetch("/api/health");
+    const response = await fetch("/api/health", { cache: "no-store" });
     const status = response.ok ? await readApiJson(response) : { aiConfigured: false };
     if (status.aiConfigured) {
       apiStatusBadge.className = "badge badge-safe";
@@ -377,6 +377,7 @@ async function callAiMentor(promptText, systemInstruction = "") {
   try {
     const response = await fetch("/api/chat", {
       method: "POST",
+      cache: "no-store",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt: promptText, systemInstruction })
     });
@@ -389,8 +390,15 @@ async function callAiMentor(promptText, systemInstruction = "") {
     }
     return result.reply;
   } catch (error) {
-    console.warn("AI service request failed:", error);
-    return `⚠️ ${error.message || "The live AI service is unavailable."}\n\n*Using offline mentor response:*\n\n` + generateOfflineAiResponse(promptText);
+    console.warn("Live AI is unavailable; using the offline mentor:", error);
+    if (apiStatusBadge) {
+      apiStatusBadge.className = "badge badge-warning";
+      apiStatusBadge.textContent = "Offline Mode";
+    }
+    if (apiStatusNote) {
+      apiStatusNote.textContent = "Live AI is unavailable on this host. Your request was answered using the built-in offline mentor.";
+    }
+    return generateOfflineAiResponse(promptText);
   }
 }
 
