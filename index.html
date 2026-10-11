@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FocusPulse | Student Revision & AI Mentorship Hub</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- Google Identity Services Library -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+  <!-- Header Bar -->
+  <header class="navbar">
+    <div class="brand">
+      <span class="logo-icon">⚡</span>
+      <div class="brand-text">
+        <h1>Focus<span>Pulse</span></h1>
+        <span class="ai-badge-sub">Powered by Focus AI (Gemini)</span>
+      </div>
+    </div>
+
+    <div class="nav-controls">
+      <div class="nav-tabs">
+        <button class="nav-tab active" data-view="dashboard-view">Workspace</button>
+        <button class="nav-tab" data-view="report-view">Analytics & Report</button>
+        <button class="nav-tab" data-view="ai-view">Focus AI ✨</button>
+      </div>
+
+      <div class="user-status">
+        <span class="badge streak-badge" id="streak-counter">🔥 0 Day Streak</span>
+        <span id="burnout-badge" class="badge badge-safe">State: Balanced</span>
+        
+        <!-- Google Authentication Wrapper -->
+        <div class="auth-wrapper" id="auth-wrapper">
+          <div id="g-signin-btn"></div>
+          <button id="fallback-login-btn" class="btn btn-sm btn-google-fallback">
+            <svg class="google-icon" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
+            Sign In with Google
+          </button>
+          
+          <div class="user-profile-chip" id="user-profile-chip" style="display: none;">
+            <img src="" alt="Avatar" id="user-avatar" class="user-avatar" />
+            <span class="user-name" id="user-name">Student</span>
+            <button id="signout-btn" class="btn btn-sm btn-outline" title="Sign Out">Sign Out</button>
+          </div>
+        </div>
+
+        <div class="header-actions">
+          <button id="demo-btn" class="btn btn-sm btn-outline" title="Load realistic sample data">Demo Data</button>
+          <button id="reset-all-btn" class="btn btn-sm btn-danger" title="Clear all local data">Reset</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= VIEW 1: WORKSPACE ================= -->
+  <section id="dashboard-view" class="view-panel active">
+    <div class="metric-row">
+      <div class="metric-card">
+        <h3>Tasks Completed</h3>
+        <p class="metric-value" id="tasks-stat">0 / 0</p>
+        <div class="progress-track">
+          <div class="progress-fill" id="progress-fill" style="width: 0%;"></div>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <h3>Focused Study Time</h3>
+        <p class="metric-value" id="time-stat">0 min</p>
+        <span class="subtext">Daily Target: 120 min</span>
+      </div>
+
+      <div class="metric-card">
+        <h3>Burnout Risk Index</h3>
+        <p class="metric-value" id="risk-stat">Low</p>
+        <span class="subtext" id="screen-time-text">Logged Screen Time: 0.0 hrs</span>
+      </div>
+    </div>
+
+    <!-- Heatmap -->
+    <div class="card heatmap-card">
+      <div class="heatmap-header">
+        <div>
+          <h2>Revision Activity Grid</h2>
+          <span class="subtext" id="heatmap-subtext">0 focus blocks and tasks recorded</span>
+        </div>
+        <div class="heatmap-legend">
+          <span>Less</span>
+          <span class="legend-cell level-0"></span>
+          <span class="legend-cell level-1"></span>
+          <span class="legend-cell level-2"></span>
+          <span class="legend-cell level-3"></span>
+          <span class="legend-cell level-4"></span>
+          <span>More</span>
+        </div>
+      </div>
+
+      <div class="heatmap-wrapper">
+        <div class="heatmap-month-labels" id="heatmap-months"></div>
+        <div class="heatmap-body">
+          <div class="heatmap-day-labels">
+            <span></span>
+            <span>Mon</span>
+            <span></span>
+            <span>Wed</span>
+            <span></span>
+            <span>Fri</span>
+            <span></span>
+          </div>
+          <div class="heatmap-grid" id="heatmap-grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="workspace-grid">
+      <!-- Left Panel: Timer & Health -->
+      <section class="card panel-left">
+        <h2>Study Session Timer</h2>
+        <div class="timer-box">
+          <div class="timer-display" id="timer-display">25:00</div>
+          <div class="timer-controls">
+            <button id="start-timer-btn" class="btn btn-primary">Start</button>
+            <button id="pause-timer-btn" class="btn btn-secondary">Pause</button>
+            <button id="reset-timer-btn" class="btn btn-outline">Reset</button>
+          </div>
+        </div>
+
+        <div class="quick-timer-presets">
+          <label>Session Presets:</label>
+          <div class="preset-buttons">
+            <button class="preset-btn active" data-time="25">25m Focus</button>
+            <button class="preset-btn" data-time="50">50m Deep Work</button>
+            <button class="preset-btn" data-time="5">5m Break</button>
+          </div>
+        </div>
+
+        <hr class="divider" />
+
+        <div class="flex-between">
+          <h2>Daily Screen Time</h2>
+          <button id="quick-ai-burnout-btn" class="btn btn-sm btn-ai-sparkle">✨ AI Fatigue Check</button>
+        </div>
+        <div class="screentime-form">
+          <label for="screentime-input">Recreational Screen Hours:</label>
+          <div class="input-inline">
+            <input type="number" id="screentime-input" min="0" max="16" step="0.5" value="0.0" />
+            <button id="update-screentime-btn" class="btn btn-secondary">Update</button>
+          </div>
+          <p class="helper-text" id="advice-text">Screen-to-study ratio is healthy.</p>
+        </div>
+      </section>
+
+      <!-- Right Panel: Tasks -->
+      <section class="card panel-right">
+        <div class="panel-header">
+          <div class="flex-align-gap">
+            <h2>Revision Tasks & Goals</h2>
+            <button id="quick-ai-plan-btn" class="btn btn-sm btn-ai-sparkle">✨ AI Task Decomposer</button>
+          </div>
+          <div class="filters">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="pending">Pending</button>
+            <button class="filter-btn" data-filter="completed">Done</button>
+          </div>
+        </div>
+
+        <form id="task-form" class="task-form">
+          <input 
+            type="text" 
+            id="task-title" 
+            placeholder="e.g., Physics: Electrostatics problems 1-10" 
+            required 
+            autocomplete="off"
+          />
+          <select id="task-subject" required>
+            <option value="" disabled selected>Subject</option>
+            <option value="Physics">Physics</option>
+            <option value="Maths">Maths</option>
+            <option value="Chemistry">Chemistry</option>
+            <option value="Biology">Biology</option>
+            <option value="Computer Science">Computer Science</option>
+            <option value="General">General</option>
+          </select>
+          <select id="task-priority">
+            <option value="High">High</option>
+            <option value="Medium" selected>Medium</option>
+            <option value="Low">Low</option>
+          </select>
+          <button type="submit" class="btn btn-primary">+ Add</button>
+        </form>
+
+        <ul id="task-list" class="task-list"></ul>
+      </section>
+    </div>
+  </section>
+
+  <!-- ================= VIEW 2: ANALYTICS & REPORT ================= -->
+  <section id="report-view" class="view-panel">
+    <div class="report-header-banner">
+      <div>
+        <h2>Comprehensive Performance Report</h2>
+        <p class="subtext">Academic revision audit, cognitive health analysis, and time balance summary</p>
+      </div>
+      <div class="report-actions">
+        <button id="ai-generate-summary-btn" class="btn btn-ai-sparkle">✨ Generate AI Audit</button>
+        <button id="download-txt-btn" class="btn btn-primary">Download Text Summary</button>
+        <button onclick="window.print()" class="btn btn-outline">Print Report</button>
+      </div>
+    </div>
+
+    <div class="card ai-summary-card">
+      <div class="ai-summary-header">
+        <span class="ai-chip">✨ FOCUS AI EXECUTIVE AUDIT</span>
+        <span class="ai-status-indicator">Powered by Gemini</span>
+      </div>
+      <div class="ai-summary-content" id="ai-summary-body">
+        Click <strong>"Generate AI Audit"</strong> to synthesize your revision habits, burnout indicators, and personalized study tips via Gemini.
+      </div>
+    </div>
+
+    <div class="report-metrics-row">
+      <div class="card metric-card">
+        <h3>Task Completion Ratio</h3>
+        <p class="metric-value" id="report-completion-pct">0%</p>
+        <span class="subtext" id="report-completion-sub">0 tasks completed out of 0</span>
+      </div>
+
+      <div class="card metric-card">
+        <h3>Average Focus Session</h3>
+        <p class="metric-value" id="report-avg-session">25 min</p>
+        <span class="subtext">Standard Pomodoro interval</span>
+      </div>
+
+      <div class="card metric-card">
+        <h3>Screen / Study Ratio</h3>
+        <p class="metric-value" id="report-ratio-val">0.0x</p>
+        <span class="subtext" id="report-ratio-sub">Balanced equilibrium</span>
+      </div>
+
+      <div class="card metric-card">
+        <h3>Current Habit Streak</h3>
+        <p class="metric-value" id="report-streak-val">0 Days</p>
+        <span class="subtext">Consecutive active study days</span>
+      </div>
+    </div>
+
+    <div class="card report-section-card">
+      <div class="panel-header">
+        <h2>Subject Revision Distribution</h2>
+        <span class="subtext">Workload allocation across academic disciplines</span>
+      </div>
+      <div class="subject-stacked-bar" id="subject-stacked-bar"></div>
+      <div class="subject-legend-grid" id="subject-legend-grid"></div>
+    </div>
+
+    <div class="card report-section-card">
+      <h2>Cognitive Load & Fatigue Diagnostic</h2>
+      <div class="burnout-diagnostic-grid">
+        <div class="diagnostic-box">
+          <span class="diag-label">Logged Study Load</span>
+          <strong class="diag-val" id="diag-study-hours">0.0 hrs</strong>
+          <p class="diag-sub">High school recommended: 2.0 to 3.5 hrs/day</p>
+        </div>
+        <div class="diagnostic-box">
+          <span class="diag-label">Recreational Screen Burden</span>
+          <strong class="diag-val" id="diag-screen-hours">0.0 hrs</strong>
+          <p class="diag-sub">Eye strain limit: &le; 2.5 hrs/day</p>
+        </div>
+        <div class="diagnostic-box">
+          <span class="diag-label">Prescribed Action</span>
+          <strong class="diag-val" id="diag-recommendation">Healthy state</strong>
+          <p class="diag-sub" id="diag-recommendation-sub">Keep alternating 25m work blocks with 5m breaks.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card report-section-card">
+      <h2>Task Registry & Completion Log</h2>
+      <div class="table-container">
+        <table class="report-table">
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Task Description</th>
+              <th>Subject</th>
+              <th>Priority</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="report-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= VIEW 3: FOCUS AI ASSISTANT ================= -->
+  <section id="ai-view" class="view-panel">
+    <div class="ai-dashboard-layout">
+      <aside class="ai-tools-sidebar">
+        <div class="card">
+          <h2>Focus AI Capabilities</h2>
+          <p class="subtext">Tailored revision guidance powered by Google Gemini.</p>
+
+          <div class="ai-quick-actions">
+            <button class="ai-action-btn" id="action-breakdown-btn">
+              <span class="action-icon">🧩</span>
+              <div class="action-details">
+                <strong>Decompose Syllabus Topic</strong>
+                <small>Convert complex chapter into subtasks</small>
+              </div>
+            </button>
+
+            <button class="ai-action-btn" id="action-quiz-btn">
+              <span class="action-icon">🎯</span>
+              <div class="action-details">
+                <strong>Active Recall Mini-Quiz</strong>
+                <small>Test memory on any subject in 3 Qs</small>
+              </div>
+            </button>
+
+            <button class="ai-action-btn" id="action-fatigue-btn">
+              <span class="action-icon">🧘</span>
+              <div class="action-details">
+                <strong>Cognitive Burnout Coaching</strong>
+                <small>Get a personalized rest schedule</small>
+              </div>
+            </button>
+
+            <button class="ai-action-btn" id="action-strategy-btn">
+              <span class="action-icon">⚡</span>
+              <div class="action-details">
+                <strong>Smart Revision Schedule</strong>
+                <small>Optimize priority tasks for today</small>
+              </div>
+            </button>
+          </div>
+
+          <hr class="divider" />
+
+          <div class="api-status-box">
+            <div class="flex-between">
+              <span class="api-label">Focus AI Core:</span>
+              <span class="badge badge-safe" id="api-status-badge">Gemini Active</span>
+            </div>
+            <p class="helper-text" id="api-status-note">Using pre-configured Gemini AI key with live inference.</p>
+          </div>
+        </div>
+      </aside>
+
+      <div class="ai-chat-console">
+        <div class="card chat-card">
+          <div class="chat-header">
+            <div class="flex-align-gap">
+              <span class="sparkle-icon">✨</span>
+              <div>
+                <h2>Focus AI Interactive Mentor</h2>
+                <span class="subtext">Ask study questions, request flashcards, or generate study plans</span>
+              </div>
+            </div>
+            <button id="clear-chat-btn" class="btn btn-sm btn-outline">Clear Chat</button>
+          </div>
+
+          <div class="chat-messages" id="chat-messages">
+            <div class="chat-bubble ai-bubble">
+              <div class="bubble-header">
+                <strong>Focus AI</strong>
+                <span class="timestamp">Ready</span>
+              </div>
+              <p>Hello! I am your <strong>Focus AI Study Companion</strong>, powered by Google Gemini. I can break down heavy syllabus chapters into manageable checklist tasks, generate quick formula recall quizzes, or assess your study-to-screen fatigue. What are we revising today?</p>
+            </div>
+          </div>
+
+          <form id="ai-chat-form" class="chat-input-form">
+            <input 
+              type="text" 
+              id="ai-user-prompt" 
+              placeholder="Ask anything (e.g. 'Break down Optics in Physics into 3 tasks', 'Test me on Photosynthesis')..." 
+              autocomplete="off"
+              required
+            />
+            <button type="submit" id="ai-send-btn" class="btn btn-primary">Send ✨</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script src="app.js"></script>
+</body>
+</html>
