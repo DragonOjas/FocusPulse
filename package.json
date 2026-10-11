@@ -1,0 +1,13 @@
+{
+  "name": "focuspulse",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FocusPulse study planner with secure Groq AI integration",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

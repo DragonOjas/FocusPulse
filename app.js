@@ -1,6 +1,4 @@
 // ================= CONFIGURATION =================
-const GEMINI_API_KEY = "";
-
 const STORAGE_KEYS = {
   TASKS: "focuspulse_tasks",
   MINUTES: "focuspulse_minutes",
@@ -107,17 +105,27 @@ function renderDate() {
   if (el) el.textContent = now.toLocaleDateString(undefined, options);
 }
 
-function updateApiBadgeState() {
+async function updateApiBadgeState() {
   if (!apiStatusBadge) return;
-  if (GEMINI_API_KEY && GEMINI_API_KEY.trim().length > 10) {
-    apiStatusBadge.className = "badge badge-safe";
-    apiStatusBadge.textContent = "Gemini Key Loaded";
-    if (apiStatusNote) apiStatusNote.textContent = "Live cloud calls enabled with transparent error diagnostics.";
-  } else {
-    apiStatusBadge.className = "badge badge-warning";
-    apiStatusBadge.textContent = "Offline Mode";
-    if (apiStatusNote) apiStatusNote.textContent = "Heuristic engine active.";
+  apiStatusBadge.className = "badge badge-warning";
+  apiStatusBadge.textContent = "Checking AI...";
+
+  try {
+    const response = await fetch("/api/health");
+    const status = response.ok ? await response.json() : { aiConfigured: false };
+    if (status.aiConfigured) {
+      apiStatusBadge.className = "badge badge-safe";
+      apiStatusBadge.textContent = "Groq Active";
+      if (apiStatusNote) apiStatusNote.textContent = "Live AI responses are securely proxied by the app server.";
+      return;
+    }
+  } catch (error) {
+    console.warn("AI service status check failed:", error);
   }
+
+  apiStatusBadge.className = "badge badge-warning";
+  apiStatusBadge.textContent = "Offline Mode";
+  if (apiStatusNote) apiStatusNote.textContent = "Offline mentor responses are active. Configure GROQ_API_KEY on the app server for live AI.";
 }
 
 // ================= STREAK & CALENDAR ENGINE =================
@@ -348,59 +356,26 @@ function setupEventListeners() {
   if (downloadTxtBtn) downloadTxtBtn.addEventListener("click", exportDailySummary);
 }
 
-// ================= GEMINI CALLER (SINGLE CREDENTIAL ONLY) =================
-async function callGemini(promptText, systemInstruction = "") {
-  const cleanKey = GEMINI_API_KEY ? GEMINI_API_KEY.trim() : "";
-
-  if (cleanKey.length > 10) {
-    const payload = {
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: (systemInstruction ? systemInstruction + "\n\n" : "") + promptText }]
-        }
-      ]
-    };
-
-    // Primary route: Header only (avoids multiple-credential collisions)
-    try {
-      const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": cleanKey
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text) return text;
-      }
-
-      // Secondary route: Query parameter only (without custom headers)
-      const urlRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(cleanKey)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-
-      if (urlRes.ok) {
-        const urlData = await urlRes.json();
-        const urlText = urlData.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (urlText) return urlText;
-      }
-
-      const errJson = await res.json().catch(() => ({}));
-      return `⚠️ **Gemini API Error (HTTP ${res.status}):** ${errJson.error?.message || res.statusText}\n\n*Using offline mentor response:*\n\n` + generateOfflineAiResponse(promptText);
-    } catch (netErr) {
-      console.warn("Network error reaching Gemini:", netErr);
-      return generateOfflineAiResponse(promptText);
+// ================= SECURE AI SERVICE PROXY =================
+async function callAiMentor(promptText, systemInstruction = "") {
+  try {
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: promptText, systemInstruction })
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || `AI service request failed (HTTP ${response.status}).`);
     }
+    if (typeof result.reply !== "string" || !result.reply.trim()) {
+      throw new Error("The AI service returned an empty response.");
+    }
+    return result.reply;
+  } catch (error) {
+    console.warn("AI service request failed:", error);
+    return `⚠️ ${error.message || "The live AI service is unavailable."}\n\n*Using offline mentor response:*\n\n` + generateOfflineAiResponse(promptText);
   }
-
-  return generateOfflineAiResponse(promptText);
 }
 
 // ================= NATURAL OFFLINE RESPONSES =================
@@ -449,8 +424,8 @@ async function handleChatSubmit(e) {
   appendChatBubble("user", text);
   aiUserPrompt.value = "";
 
-  const loadingId = appendChatBubble("ai", "<em>Focus AI is analyzing with Gemini...</em>");
-  const reply = await callGemini(text, "You are Focus AI, an encouraging and academically sharp study mentor for high school revision.");
+  const loadingId = appendChatBubble("ai", "<em>Focus AI is preparing your response...</em>");
+  const reply = await callAiMentor(text, "You are Focus AI, an encouraging and academically sharp study mentor for high school revision.");
   updateChatBubble(loadingId, reply);
 }
 
@@ -515,7 +490,7 @@ async function promptAndDecompose(topic, defaultSubject = "General") {
   const loadingId = appendChatBubble("ai", "<em>Decomposing syllabus with Focus AI...</em>");
 
   const prompt = `Decompose the study topic "${topic}" into 3 concrete, short revision subtasks. Return format: exactly 3 bullet points starting with a dash.`;
-  const result = await callGemini(prompt);
+  const result = await callAiMentor(prompt);
   updateChatBubble(loadingId, result);
 
   const lines = result.split("\n").filter(l => l.trim().startsWith("-") || l.trim().match(/^\d+\./));
@@ -551,7 +526,7 @@ async function generateAiReportAudit() {
 - Tasks: ${tasks.map(t => t.title).join("; ")}
 Provide a 3-sentence diagnostic assessment and one high-impact tip.`;
 
-  const report = await callGemini(prompt);
+  const report = await callAiMentor(prompt);
   aiSummaryBody.innerHTML = formatMarkdownText(report);
 }
 
